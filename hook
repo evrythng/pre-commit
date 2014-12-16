@@ -115,7 +115,7 @@ function run(status, err, output) {
   commit_template = pkg['pre-commit.commit-template'];
 
   if (commit_template) {
-    commit_template_cmd = 'git config commit.template "' + commit_template + '"'; 
+    commit_template_cmd = 'git config commit.template "' + commit_template + '"';
     child.exec(commit_template_cmd, [], function exec(error, stdout, stderr) {
       if (error) { //it is better to write this even if we are 'silent'
         stderr.write('pre-commit: ' + commit_template_cmd + ' failed\n');
@@ -209,17 +209,29 @@ function run(status, err, output) {
           return;
         }
         runner(function finish(runnerError) {
-            var unstash = child.spawn('git',['stash','pop'], {
+          var reset = child.spawn('git', ['reset', '--hard', 'HEAD'], {
+            cwd: root,            // Make sure that we spawn it in the root of repo.
+            env: process.env,     // Give them the same ENV variables.
+            stdio: [0, 1, 2]      // Pipe all the things.
+          });
+          reset.on('close', function resetclose(resetcode) {
+            if (resetcode !== 0) {
+              console.error('Git reset failed : code '+resetcode);
+              mydone(runnerError);
+            } else {
+              var unstash = child.spawn('git',['stash','pop', '--index'], {
                 cwd: root,            // Make sure that we spawn it in the root of repo.
                 env: process.env,     // Give them the same ENV variables.
                 stdio: [0, 1, 2]      // Pipe all the things.
               });
-            unstash.on('close', function close2(code2) {
+              unstash.on('close', function close2(code2) {
                 if (code2 !== 0) {
                   console.error('Git unstash failed : code '+code2);
                 }
                 mydone(runnerError);
-            });
+              });
+            }
+          });
         });
       });
   })(function ready(err) {
